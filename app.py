@@ -182,6 +182,9 @@ df = cargar_datos()
 
 import hashlib
 
+# Hash para admin
+ADMIN_HASH = "d5f79309d33084a2a439259a339fb25c423466b04f96af696e7078938f894545"
+
 CODIGOS_ACCESO = {
     "39ef8f31d0da680489a9ee27fbb7aae463649feca145351a8b04ca69127a29ef": "Ingeniería en Sistemas de Información",
     "769485c82fbd36f35c88348310178e198f7baab84048d06cdd079d46c1acf8da": "Ingeniería Eléctrica",
@@ -191,8 +194,10 @@ CODIGOS_ACCESO = {
 }
 
 def verificar_codigo(codigo_input):
-    """Hashea el código ingresado y busca en el diccionario."""
+    """Hashea el código ingresado y verifica acceso (admin o carrera)."""
     hash_input = hashlib.sha256(codigo_input.upper().encode()).hexdigest()
+    if hash_input == ADMIN_HASH:
+        return "__ADMIN__"
     return CODIGOS_ACCESO.get(hash_input)
 
 # ──────────────────────────────────────────────
@@ -224,10 +229,9 @@ with st.sidebar:
     codigo_input = codigo_ingresado.strip()
 
 # Validar código (hashear y buscar)
-esp_seleccionada = verificar_codigo(codigo_input) if codigo_input else None
+resultado_acceso = verificar_codigo(codigo_input) if codigo_input else None
 
-if not esp_seleccionada:
-    # Mostrar pantalla de acceso bloqueado
+if not resultado_acceso:
     st.markdown("")
     st.markdown(
         """
@@ -245,19 +249,10 @@ if not esp_seleccionada:
     st.stop()
 
 # ──────────────────────────────────────────────
-# Acceso concedido – especialidad determinada por el hash
+# Acceso concedido – determinar modo (admin o carrera)
 # ──────────────────────────────────────────────
+es_admin = resultado_acceso == "__ADMIN__"
 
-# Filtrar datos solo de la especialidad del código
-df_esp = df[df["Especialidad_Nombre"] == esp_seleccionada]
-
-if df_esp.empty:
-    st.error(f"No se encontraron datos para {esp_seleccionada}.")
-    st.stop()
-
-# ──────────────────────────────────────────────
-# Sidebar – Filtros (Plan y Materia)
-# ──────────────────────────────────────────────
 def get_index(options_list, value):
     """Devuelve el índice del valor en la lista, o 0 si no existe."""
     try:
@@ -266,12 +261,31 @@ def get_index(options_list, value):
         return 0
 
 with st.sidebar:
-    st.success(f"✅ **{esp_seleccionada}**")
+    if es_admin:
+        st.success("👑 **Modo Administrador**")
+        st.divider()
+        st.markdown("## 🔎 Filtros")
 
-    st.divider()
-    st.markdown("## 🔎 Filtros")
+        # Admin: puede elegir cualquier especialidad
+        especialidades_todas = sorted(df["Especialidad_Nombre"].unique())
+        esp_seleccionada = st.selectbox(
+            "🏛️ Especialidad", especialidades_todas,
+            index=get_index(especialidades_todas, st.session_state.get("_esp_admin")),
+            key="_esp_admin",
+        )
+        df_esp = df[df["Especialidad_Nombre"] == esp_seleccionada]
+    else:
+        esp_seleccionada = resultado_acceso
+        st.success(f"✅ **{esp_seleccionada}**")
+        st.divider()
+        st.markdown("## 🔎 Filtros")
+        df_esp = df[df["Especialidad_Nombre"] == esp_seleccionada]
 
-    # 1. Plan
+    if df_esp.empty:
+        st.error(f"No se encontraron datos para {esp_seleccionada}.")
+        st.stop()
+
+    # Plan
     planes_disponibles = sorted(df_esp["Plan"].unique())
     plan_seleccionado = st.selectbox(
         "📋 Plan", planes_disponibles,
@@ -280,7 +294,7 @@ with st.sidebar:
     )
     df_filtrado = df_esp[df_esp["Plan"] == plan_seleccionado]
 
-    # 2. Materia
+    # Materia
     materias = sorted(df_filtrado["Materia_Nombre"].unique())
     materia_seleccionada = st.selectbox(
         "📚 Materia", materias,
