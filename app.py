@@ -179,6 +179,22 @@ def cargar_datos():
 
 df = cargar_datos()
 
+
+import hashlib
+
+CODIGOS_ACCESO = {
+    "39ef8f31d0da680489a9ee27fbb7aae463649feca145351a8b04ca69127a29ef": "Ingeniería en Sistemas de Información",
+    "769485c82fbd36f35c88348310178e198f7baab84048d06cdd079d46c1acf8da": "Ingeniería Eléctrica",
+    "33052eab97f393f947c111dc384c9105021cf2fbfadffe0461712f0bbe313348": "Ingeniería Electrónica",
+    "c1041d8013062c05dcfe099eb0d5852f916fd9dea120bca819a9648fed1bdf14": "Ingeniería Mecánica",
+    "d352f7a6195604ceb149687b0b3f6a10e88f9db5eae9b7ce99b998206c4626fd": "Ingeniería Civil",
+}
+
+def verificar_codigo(codigo_input):
+    """Hashea el código ingresado y busca en el diccionario."""
+    hash_input = hashlib.sha256(codigo_input.upper().encode()).hexdigest()
+    return CODIGOS_ACCESO.get(hash_input)
+
 # ──────────────────────────────────────────────
 # Header
 # ──────────────────────────────────────────────
@@ -192,7 +208,55 @@ st.markdown("""
 st.divider()
 
 # ──────────────────────────────────────────────
-# Sidebar – Filtros (cascada que conserva selección)
+# Gate de acceso – pedir código
+# ──────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("## 🔐 Acceso")
+    st.caption("Ingresá el código de tu carrera para acceder a los datos.")
+
+    codigo_ingresado = st.text_input(
+        "🔑 Código de acceso",
+        type="password",
+        placeholder="Ingresá tu código",
+        key="_codigo_acceso",
+    )
+
+    codigo_input = codigo_ingresado.strip()
+
+# Validar código (hashear y buscar)
+esp_seleccionada = verificar_codigo(codigo_input) if codigo_input else None
+
+if not esp_seleccionada:
+    # Mostrar pantalla de acceso bloqueado
+    st.markdown("")
+    st.markdown(
+        """
+        <div style="text-align:center; padding: 4rem 2rem;">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">🔒</div>
+            <h2 style="color: #e0e0ff !important;">Acceso restringido</h2>
+            <p style="color: #8888aa; font-size: 1.1rem; max-width: 500px; margin: 0 auto;">
+                Ingresá el código de tu carrera en la barra lateral para acceder
+                al dashboard de datos académicos.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+# ──────────────────────────────────────────────
+# Acceso concedido – especialidad determinada por el hash
+# ──────────────────────────────────────────────
+
+# Filtrar datos solo de la especialidad del código
+df_esp = df[df["Especialidad_Nombre"] == esp_seleccionada]
+
+if df_esp.empty:
+    st.error(f"No se encontraron datos para {esp_seleccionada}.")
+    st.stop()
+
+# ──────────────────────────────────────────────
+# Sidebar – Filtros (Plan y Materia)
 # ──────────────────────────────────────────────
 def get_index(options_list, value):
     """Devuelve el índice del valor en la lista, o 0 si no existe."""
@@ -202,28 +266,21 @@ def get_index(options_list, value):
         return 0
 
 with st.sidebar:
-    st.markdown("## 🔎 Filtros")
-    st.caption("Seleccioná los criterios para filtrar los datos.")
+    st.success(f"✅ **{esp_seleccionada}**")
 
-    # 1. Plan – siempre muestra todos los planes
-    planes_disponibles = sorted(df["Plan"].unique())
+    st.divider()
+    st.markdown("## 🔎 Filtros")
+
+    # 1. Plan
+    planes_disponibles = sorted(df_esp["Plan"].unique())
     plan_seleccionado = st.selectbox(
         "📋 Plan", planes_disponibles,
         index=get_index(planes_disponibles, st.session_state.get("_plan")),
         key="_plan",
     )
-    df_filtrado = df[df["Plan"] == plan_seleccionado]
+    df_filtrado = df_esp[df_esp["Plan"] == plan_seleccionado]
 
-    # 2. Especialidad – filtrada por plan, pero conserva selección previa
-    especialidades = sorted(df_filtrado["Especialidad_Nombre"].unique())
-    esp_seleccionada = st.selectbox(
-        "🏛️ Especialidad", especialidades,
-        index=get_index(especialidades, st.session_state.get("_esp")),
-        key="_esp",
-    )
-    df_filtrado = df_filtrado[df_filtrado["Especialidad_Nombre"] == esp_seleccionada]
-
-    # 3. Materia – filtrada por plan+especialidad, pero conserva selección previa
+    # 2. Materia
     materias = sorted(df_filtrado["Materia_Nombre"].unique())
     materia_seleccionada = st.selectbox(
         "📚 Materia", materias,
