@@ -150,7 +150,7 @@ def cargar_datos():
     base_path = os.path.join(os.path.dirname(__file__), "Data", "silver")
 
     frames = []
-    for plan_dir in ["2008", "2023"]:
+    for plan_dir in ["2008", "2023", "1994", "1995"]:
         path = os.path.join(base_path, plan_dir)
         if os.path.exists(path):
             dt = DeltaTable(path)
