@@ -1,0 +1,15 @@
+Año
+especialid
+esp
+plan
+materia
+nombre
+Total Inscriptos
+Nuevos Inscriptos
+Nuevos Inscriptos Libres
+Recursantes Libres
+Nuevos Inscriptos Regulares
+Nuevos Inscritpos Promocionados
+Recursantes
+Recursantes Regulares
+Recursantes Promocionados

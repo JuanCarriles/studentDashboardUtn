@@ -1,0 +1,5 @@
+5|Ingeniería en Sistemas de Información
+7|Ingeniería Eléctrica
+9|Ingeniería Electrónica
+17|Ingeniería Mecánica
+31|Ingeniería Civil
