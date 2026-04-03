@@ -182,8 +182,9 @@ df = cargar_datos()
 
 import hashlib
 
-# Hash para admin
+# Hashes para roles especiales
 ADMIN_HASH = "d5f79309d33084a2a439259a339fb25c423466b04f96af696e7078938f894545"
+CB_HASH = "8cddd73ebb4c1e72b848f82faecdc50007461cd4f53aac623c9f13e7624f71e5"
 
 CODIGOS_ACCESO = {
     "39ef8f31d0da680489a9ee27fbb7aae463649feca145351a8b04ca69127a29ef": "Ingeniería en Sistemas de Información",
@@ -194,10 +195,12 @@ CODIGOS_ACCESO = {
 }
 
 def verificar_codigo(codigo_input):
-    """Hashea el código ingresado y verifica acceso (admin o carrera)."""
+    """Hashea el código ingresado y verifica acceso (admin, cb o carrera)."""
     hash_input = hashlib.sha256(codigo_input.upper().encode()).hexdigest()
     if hash_input == ADMIN_HASH:
         return "__ADMIN__"
+    if hash_input == CB_HASH:
+        return "__CB__"
     return CODIGOS_ACCESO.get(hash_input)
 
 # ──────────────────────────────────────────────
@@ -249,9 +252,10 @@ if not resultado_acceso:
     st.stop()
 
 # ──────────────────────────────────────────────
-# Acceso concedido – determinar modo (admin o carrera)
+# Acceso concedido – determinar modo
 # ──────────────────────────────────────────────
 es_admin = resultado_acceso == "__ADMIN__"
+es_cb = resultado_acceso == "__CB__"
 
 def get_index(options_list, value):
     """Devuelve el índice del valor en la lista, o 0 si no existe."""
@@ -266,7 +270,6 @@ with st.sidebar:
         st.divider()
         st.markdown("## 🔎 Filtros")
 
-        # Admin: puede elegir cualquier especialidad
         especialidades_todas = sorted(df["Especialidad_Nombre"].unique())
         esp_seleccionada = st.selectbox(
             "🏛️ Especialidad", especialidades_todas,
@@ -274,6 +277,35 @@ with st.sidebar:
             key="_esp_admin",
         )
         df_esp = df[df["Especialidad_Nombre"] == esp_seleccionada]
+
+    elif es_cb:
+        st.success("🔬 **Ciencias Básicas**")
+        st.divider()
+        st.markdown("## 🔎 Filtros")
+
+        # Filtrar solo materias de Ciencias Básicas
+        if "Ciencias_Basicas" in df.columns:
+            df_cb = df[df["Ciencias_Basicas"] == True]
+        else:
+            st.error("⚠️ La columna 'Ciencias_Basicas' no existe. Ejecutá primero el notebook para generarla.")
+            st.stop()
+
+        # Selector de especialidad con opción "Todas"
+        especialidades_cb = sorted(df_cb["Especialidad_Nombre"].unique())
+        opciones_esp = ["📊 Todas las especialidades"] + especialidades_cb
+        esp_cb_seleccionada = st.selectbox(
+            "🏛️ Especialidad", opciones_esp,
+            index=get_index(opciones_esp, st.session_state.get("_esp_cb")),
+            key="_esp_cb",
+        )
+
+        if esp_cb_seleccionada == "📊 Todas las especialidades":
+            df_esp = df_cb
+            esp_seleccionada = "Todas las especialidades (Ciencias Básicas)"
+        else:
+            df_esp = df_cb[df_cb["Especialidad_Nombre"] == esp_cb_seleccionada]
+            esp_seleccionada = esp_cb_seleccionada
+
     else:
         esp_seleccionada = resultado_acceso
         st.success(f"✅ **{esp_seleccionada}**")
@@ -330,7 +362,23 @@ st.markdown(f"### 📌 {materia_seleccionada}")
 st.caption(f"Plan {plan_seleccionado}  ·  {esp_seleccionada}")
 
 if not df_materia.empty:
-    row = df_materia.iloc[0]
+    # Si hay múltiples filas (ej: misma materia en varias especialidades), sumamos
+    if len(df_materia) > 1:
+        cols_num = [
+            "Total_Inscriptos", "Nuevos_Inscriptos",
+            "Nuevos_Inscriptos_Libres", "Recursantes_Libres",
+            "Nuevos_Inscriptos_Regulares", "Nuevos_Inscriptos_Promocionados",
+            "Recursantes", "Recursantes_Regulares", "Recursantes_Promocionados",
+            "Total_Libres", "Total_Regulares", "Total_Promocionados",
+        ]
+        row = df_materia[cols_num].sum()
+        # Recalcular porcentajes del total
+        total_safe = row["Total_Inscriptos"] if row["Total_Inscriptos"] > 0 else 1
+        row["PCT_Libres"] = round(row["Total_Libres"] / total_safe * 100, 1)
+        row["PCT_Regulares"] = round(row["Total_Regulares"] / total_safe * 100, 1)
+        row["PCT_Promocionados"] = round(row["Total_Promocionados"] / total_safe * 100, 1)
+    else:
+        row = df_materia.iloc[0]
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("👥 Total Inscriptos", int(row["Total_Inscriptos"]))
